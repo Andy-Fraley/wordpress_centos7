@@ -1,0 +1,26 @@
+---
+- name: Install NTP
+  yum: name={{ item }} state=present
+  with_items:
+  - ntp
+
+- name: Set the correct timezone
+  file:
+    src: "/usr/share/zoneinfo/{{ ntp_timezone }}"
+    dest: /etc/localtime
+    state: link
+    force: yes
+
+- name: Ensure NTP is running and enabled at system start.
+  service:
+    name: ntpd
+    state: started
+    enabled: yes
+  when: ntp_enabled
+
+- name: Ensure NTP is stopped and disabled at system start.
+  service:
+    name: ntpd
+    state: stopped
+    enabled: no
+  when: not ntp_enabled

@@ -1,0 +1,19 @@
+---
+- name: Set up primary Google DNS
+  lineinfile:
+    dest: /etc/resolv.conf
+    regexp: 'nameserver\s+8.8.8.8'
+    line: 'nameserver 8.8.8.8'
+
+- name: Set up secondary Google DNS
+  lineinfile:
+    dest: /etc/resolv.conf
+    regexp: 'nameserver\s+8.8.4.4'
+    line: 'nameserver 8.8.4.4'
+
+- name: Ensure yum (RedHat/CenOS) OS, since these scripts based on only yum, not apt
+  fail: msg="Error! These ansible scripts work only on CentOS/RedHat!  Aborting!"
+  when: ansible_os_family != "RedHat"
+
+- name: Update yum all
+  yum: name=* state=latest update_cache=yes

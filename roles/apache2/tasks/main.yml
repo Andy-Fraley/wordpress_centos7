@@ -1,0 +1,60 @@
+---
+- name: Install Apache web server
+  yum: name={{ item }} state=present
+  with_items:
+  - httpd
+  - httpd-devel
+  - mod_ssl
+  - openssh
+  notify:
+  - restart apache
+
+- name: Enable mod-rewrite
+  apache2_module:
+    state: present
+    name: rewrite
+  notify: restart apache
+
+- name: mod_php7 for apache
+  apache2_module:
+    state: present
+    name: php7.0
+  notify: restart apache
+
+- name: open firewall for http
+  firewalld:
+    service: http
+    permanent: true
+    state: enabled
+  notify: restart firewalld
+
+- name: open firewall for https
+  firewalld:
+    service: https
+    permanent: true
+    state: enabled
+  notify: restart firewalld
+
+- name: Disable mpm prefork
+  lineinfile:
+    dest: /etc/httpd/conf.modules.d/00-mpm.conf
+    regexp: '^LoadModule mpm_prefork_module modules/mod_mpm_prefork.so'
+    line: '#LoadModule mpm_prefork_module modules/mod_mpm_prefork.so'
+    backrefs: yes
+  notify: restart apache
+
+- name: Disable mpm worker
+  lineinfile:
+    dest: /etc/httpd/conf.modules.d/00-mpm.conf
+    regexp: '^LoadModule mpm_worker_module modules/mod_mpm_worker.so'
+    line: '#LoadModule mpm_worker_module modules/mod_mpm_worker.so'
+    backrefs: yes
+  notify: restart apache
+
+- name: Enable mpm event
+  lineinfile:
+    dest: /etc/httpd/conf.modules.d/00-mpm.conf
+    regexp: '^#LoadModule mpm_event_module modules/mod_mpm_event.so'
+    line: 'LoadModule mpm_event_module modules/mod_mpm_event.so'
+    backrefs: yes
+  notify: restart apache
