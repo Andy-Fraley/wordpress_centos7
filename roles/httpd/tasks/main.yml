@@ -1,5 +1,5 @@
 ---
-- name: Install Apache web server
+- name: Install Apache web server (httpd)
   yum: name={{ item }} state=present
   with_items:
   - httpd
@@ -7,19 +7,19 @@
   - mod_ssl
   - openssh
   notify:
-  - restart apache
+  - restart httpd
 
 - name: Enable mod-rewrite
   apache2_module:
     state: present
     name: rewrite
-  notify: restart apache
+  notify: restart httpd
 
-- name: mod_php7 for apache
+- name: Enable mod_php7
   apache2_module:
     state: present
     name: php7.0
-  notify: restart apache
+  notify: restart httpd
 
 - name: open firewall for http
   firewalld:
@@ -41,7 +41,7 @@
     regexp: '^LoadModule mpm_prefork_module modules/mod_mpm_prefork.so'
     line: '#LoadModule mpm_prefork_module modules/mod_mpm_prefork.so'
     backrefs: yes
-  notify: restart apache
+  notify: restart httpd
 
 - name: Disable mpm worker
   lineinfile:
@@ -49,7 +49,7 @@
     regexp: '^LoadModule mpm_worker_module modules/mod_mpm_worker.so'
     line: '#LoadModule mpm_worker_module modules/mod_mpm_worker.so'
     backrefs: yes
-  notify: restart apache
+  notify: restart httpd
 
 - name: Enable mpm event
   lineinfile:
@@ -57,4 +57,4 @@
     regexp: '^#LoadModule mpm_event_module modules/mod_mpm_event.so'
     line: 'LoadModule mpm_event_module modules/mod_mpm_event.so'
     backrefs: yes
-  notify: restart apache
+  notify: restart httpd

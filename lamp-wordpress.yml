@@ -8,5 +8,6 @@
     - base
     - ntp
     - php7_0
-    - apache2
+    - httpd
     - mysql5_7
+    #- wordpress
