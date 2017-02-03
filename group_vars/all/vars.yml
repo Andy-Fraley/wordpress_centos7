@@ -1,3 +1,7 @@
+# An encrypted vault.yml file must be created in this directory with exact same structure as below except with
+# node names vault_linux (instead of simply "linux") and vault_db (instead of simply "db") and with actual
+# values for each of the listed keys like root_user, root_password, wp_name, etc.
+
 linux:
   root_user: "{{ vault_linux.root_user }}"
   root_password: "{{ vault_linux.root_password }}"
