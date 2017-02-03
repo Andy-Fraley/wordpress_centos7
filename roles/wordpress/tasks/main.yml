@@ -1,0 +1,77 @@
+---
+- name: Download and expand WordPress (won't re-download if index.php already present in /var/www/html/)
+  unarchive: src=http://wordpress.org/latest.tar.gz dest=/var/www/html copy=no creates=/var/www/html/index.php
+
+- name: Delete original Apache /var/www/html/index.html if present
+  file:
+    path: /var/www/html/index.html
+    state: absent
+
+- name: Move WordPress files up a level (so they're directly under /var/www/html/)
+  shell: mv wordpress/* . chdir=/var/www/html/ removes=/var/www/html/wordpress/index.php creates=/var/www/html/index.php
+
+- name: Fetch random salts for WordPress config
+  local_action: command curl https://api.wordpress.org/secret-key/1.1/salt/
+  register: wp_salt
+  become: no
+
+- name: Update WordPress config file from template
+  template:
+    src: wp-config.php.j2
+    dest: /var/www/html/wp-config.php
+
+- name: Change ownership of WordPress installation
+  file:
+    path: /var/www/html/
+    owner: apache
+    group: apache
+    state: directory
+    recurse: yes
+
+- name: Create WordPress database
+  mysql_db: name={{ db.wp_name }} state=present login_password="{{ db.root_password }}"
+
+- name: Create WordPress database user
+  mysql_user: name={{ db.wp_user }} password={{ db.wp_password }} priv={{ db.wp_name }}.*:ALL host='localhost' state=present login_password="{{ db.root_password }}"
+
+- name: Check if wp-cli installed
+  stat:
+    path: /usr/local/bin/wp
+  register: wp_cli
+
+- name: Retrieve wp-cli
+  get_url:
+    url: https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+    dest: /usr/local/bin
+  when: not wp_cli.stat.exists
+
+- name: Rename wp-cli
+  command: mv /usr/local/bin/wp-cli.phar /usr/local/bin/wp
+  when: not wp_cli.stat.exists
+
+- name: Change wp(-cli) to executable
+  file:
+    path: /usr/local/bin/wp
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Update httpd's httpd.conf to allow for .htaccess in /var/www/html and set "ServerName localhost" and do hostname remapping
+  template:
+    src: httpd.conf.j2
+    dest: /etc/httpd/conf/httpd.conf
+    owner: root
+    group: root
+    mode: 0466
+
+- name: Restart httpd
+  service:
+    name: httpd
+    state: restarted
+    enabled: yes
+
+- name: Restart php-fpm service
+  service:
+    name: php-fpm
+    state: restarted
+    enabled: yes

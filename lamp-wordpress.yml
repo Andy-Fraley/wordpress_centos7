@@ -10,4 +10,5 @@
     - php7_0
     - httpd
     - mysql5_7
-    #- wordpress
+    - wordpress
+    #- pull_latest_content
