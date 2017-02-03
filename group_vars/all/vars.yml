@@ -7,9 +7,3 @@ db:
   wp_name: "{{ vault_db.wp_name }}"
   wp_user: "{{ vault_db.wp_user }}"
   wp_password: "{{ vault_db.wp_password }}"
-
-aws:
-  access_key_id: "{{ vault_aws.access_key_id }}"
-  secret_access_key:  "{{ vault_aws.secret_access_key }}"
-  region_name: "{{ vault_aws.region_name }}"
-  s3_bucket_name: "{{ vault_aws.s3_bucket_name }}"

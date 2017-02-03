@@ -11,4 +11,3 @@
     - httpd
     - mysql5_7
     - wordpress
-    #- pull_latest_content
