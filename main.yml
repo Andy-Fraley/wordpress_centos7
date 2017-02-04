@@ -5,9 +5,9 @@
     ansible_user: "{{ linux.root_user }}"
     ansible_ssh_pass: "{{ linux.root_password }}"
   roles:
-    - base
-    - ntp
-    - php7_0
-    - httpd
-    - mysql5_7
+    #- base
+    #- ntp
+    #- php7_0
+    #- httpd
+    #- mysql5_7
     - wordpress
