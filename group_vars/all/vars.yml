@@ -5,9 +5,15 @@
 linux:
   root_user: "{{ vault_linux.root_user }}"
   root_password: "{{ vault_linux.root_password }}"
+  deploy_user: "{{ vault_linux.deploy_user }}"
+  deploy_password: "{{ vault_linux.deploy_password }}"
+  ssh_port: "{{ vault_linux.ssh_port }}"
 
 db:
   root_password: "{{ vault_db.root_password }}"
   wp_name: "{{ vault_db.wp_name }}"
   wp_user: "{{ vault_db.wp_user }}"
   wp_password: "{{ vault_db.wp_password }}"
+
+wordpress:
+  root_directory: "{{ vault_wordpress.root_directory }}"

@@ -30,7 +30,6 @@
     file:
       path: /var/www/html/wordpress
       state: absent
-    # shell: rmdir /var/www/html/wordpress
 
   - name: Fetch random salts for WordPress config
     local_action: command curl https://api.wordpress.org/secret-key/1.1/salt/
@@ -41,13 +40,29 @@
       src: wp-config.php.j2
       dest: /var/www/html/wp-config.php
 
-  - name: Change ownership of WordPress installation
+  - name: Change owner/group of Wordpress files
     file:
-      path: /var/www/html/
-      owner: apache
-      group: apache
+      path: "{{ wordpress.root_directory }}/"
       state: directory
       recurse: yes
+      owner: "{{ linux.deploy_user }}"
+      group: apache
+
+  - name: Ensure all Wordpress directories are 0755
+    command: find {{ wordpress.root_directory }} -type d -exec chmod -c 0755 {} \;
+    register: chmod_result
+    changed_when: "chmod_result.stdout != \"\""
+
+  - name: Ensure all Wordpress files are 0644
+    command: find {{ wordpress.root_directory }} -type f -exec chmod -c 0644 {} \;
+    register: chmod_result
+    changed_when: "chmod_result.stdout != \"\""
+
+  - name: Special permissions for wp-config.php
+    file:
+      path: "{{ wordpress.root_directory }}/wp-config.php"
+      state: file
+      mode: 0660
 
   - name: Drop wordpress database
     mysql_db:
@@ -98,19 +113,15 @@
       dest: /etc/httpd/conf/httpd.conf
       owner: root
       group: root
-      mode: 0466
+      mode: 0644
+    notify:
+    - restart httpd
 
-  - name: Restart httpd
-    service:
-      name: httpd
-      state: restarted
-      enabled: yes
-
-  - name: Restart php-fpm service
-    service:
-      name: php-fpm
-      state: restarted
-      enabled: yes
+  - name: Add current machine to wp-admin access
+    linetofile:
+      path: /var/www/html/.htaccess
+      insertafter: 'Files.*wp-admin.php[^O]*Order deny,allow'
+      line: '1.2.3.4 # Andy Fraley home'
 
   when:
     not wordpress_file.stat.exists

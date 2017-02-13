@@ -1,13 +1,25 @@
 ---
-- name: Install common packages
+#- name: Base configuration (as root) which sets up deploy user and changes SSH port and SSH user access to lock down
+#  hosts: all
+#  vars:
+#    ansible_user: "{{ linux.root_user }}"
+#    ansible_ssh_pass: "{{ linux.root_password }}"
+#  roles:
+#    - base
+#  gather_facts: False
+
+- name: Install all other roles as 'deploy'
   hosts: all
   vars:
-    ansible_user: "{{ linux.root_user }}"
-    ansible_ssh_pass: "{{ linux.root_password }}"
+    ansible_user: "{{ linux.deploy_user }}"
+    ansible_ssh_pass: "{{ linux.deploy_password }}"
+    ansible_sudo_pass: "{{ linux.deploy_password }}"
+    ansible_port: "{{ linux.ssh_port }}"
+  become: yes
   roles:
-    #- base
     #- ntp
     #- php7_0
     #- httpd
     #- mysql5_7
-    - wordpress
+    #- wordpress
+    - wp_ht

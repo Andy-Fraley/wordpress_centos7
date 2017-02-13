@@ -1,19 +1,175 @@
 ---
+- name: Check if we're already using non-standard SSH port
+  wait_for:
+    port: "{{ linux.ssh_port }}"
+    state: "started"
+    connect_timeout: 5
+    timeout: 10
+    host: "{{ inventory_hostname }}"
+  delegate_to: localhost
+  ignore_errors: yes
+  register: non_standard_ssh
+
+- name: Change SSH port and login user used by Ansible if host is reachable on non-standard SSH port (already changed)
+  set_fact:
+    ansible_user: "{{ linux.deploy_user }}"
+    ansible_password: "{{ linux.deploy_password }}"
+    ansible_port: "{{ linux.ssh_port }}"
+    ansible_sudo_pass: "{{ linux.deploy_password }}"
+    ansible_ssh_pass: "{{ linux.deploy_password }}"
+  when: non_standard_ssh is defined and non_standard_ssh.state == "started"
+  no_log: True
+
+- name: Now get facts (since deferred as part of role)
+  setup:
+
 - name: Set up primary Google DNS
   lineinfile:
     dest: /etc/resolv.conf
     regexp: 'nameserver\s+8.8.8.8'
     line: 'nameserver 8.8.8.8'
+  become: yes
 
 - name: Set up secondary Google DNS
   lineinfile:
     dest: /etc/resolv.conf
     regexp: 'nameserver\s+8.8.4.4'
     line: 'nameserver 8.8.4.4'
+  become: yes
 
 - name: Ensure yum (RedHat/CenOS) OS, since these scripts based on only yum, not apt
   fail: msg="Error! These ansible scripts work only on CentOS/RedHat!  Aborting!"
   when: ansible_os_family != "RedHat"
 
 - name: Update yum all
-  yum: name=* state=latest update_cache=yes
+  yum:
+    name: "*"
+    state: latest
+    update_cache: yes
+  become: yes
+
+- name: Install policycoreutils-python
+  yum:
+    name: policycoreutils-python
+    state: latest
+  become: yes
+
+- name: Create 'wheel' group for sudoers on this machine
+  group:
+    name: wheel
+    state: present
+  become: yes
+
+- name: Allow 'wheel' group to have sudo privileges
+  lineinfile:
+    dest: /etc/sudoers
+    state: present
+    regexp: '^%wheel'
+    line: '%wheel ALL=(ALL) ALL'
+    validate: 'visudo -cf %s'
+  become: yes
+
+- name: Generate password for deploy user
+  local_action: command python -c "from passlib.hash import sha512_crypt; print sha512_crypt.encrypt('{{ linux.deploy_password }}')"
+  register: get_deploy_password
+
+- name: Setup deploy user from which to run further deployment tasks
+  user:
+    name: "{{ linux.deploy_user }}"
+    password: "{{ get_deploy_password.stdout }}"
+    groups: wheel
+    append: yes
+    state: present
+    createhome: yes
+    shell: /bin/bash
+    comment: Ansible deploy user
+  become: yes
+
+- name: Open firewall for new SSH port
+  firewalld:
+    port: "{{ linux.ssh_port }}/tcp"
+    permanent: true
+    state: enabled
+  become: yes
+  notify: restart firewalld
+
+- name: Open firewall for new SSH port
+  firewalld:
+    port: "{{ linux.ssh_port }}/tcp"
+    permanent: false
+    state: enabled
+  become: yes
+  notify: restart firewalld
+
+- name: Setup selinux to allow on new SSH port
+  seport:
+    ports: "{{ linux.ssh_port }}"
+    proto: tcp
+    setype: ssh_port_t
+    state: present
+  become: yes
+
+- name: Force restart of firewalld so that new SSH port becomes accessible
+  meta: flush_handlers
+
+- name: Disallow root SSH access
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^PermitRootLogin"
+    line: "PermitRootLogin no"
+    state: present
+  become: yes
+  notify: restart sshd
+
+- name: Change SSH port
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: '^Port\s'
+    line: "Port {{ linux.ssh_port }}"
+    state: present
+  become: yes
+  notify: restart sshd
+
+- name: Force restart of firewalld and sshd
+  meta: flush_handlers
+
+- name: Change SSH port and login user used by Ansible since they were just changed above
+  set_fact:
+    ansible_user: "{{ linux.deploy_user }}"
+    ansible_password: "{{ linux.deploy_password }}"
+    ansible_port: "{{ linux.ssh_port }}"
+    ansible_sudo_pass: "{{ linux.deploy_password }}"
+    ansible_ssh_pass: "{{ linux.deploy_password }}"
+  no_log: True
+
+- name: Close firewall for SSH service
+  firewalld:
+    service: ssh
+    permanent: false
+    state: disabled
+  become: yes
+  notify: restart firewalld
+
+- name: Close firewall for SSH service (permanent)
+  firewalld:
+    service: ssh
+    permanent: true
+    state: disabled
+  become: yes
+  notify: restart firewalld
+
+- name: And just making sure...  Close firewall for standard SSH port
+  firewalld:
+    port: 22/tcp
+    permanent: false
+    state: disabled
+  become: yes
+  notify: restart firewalld
+
+- name: And just making sure...  Close firewall for standard SSH port (permanent)
+  firewalld:
+    port: 22/tcp
+    permanent: true
+    state: disabled
+  become: yes
+  notify: restart firewalld
