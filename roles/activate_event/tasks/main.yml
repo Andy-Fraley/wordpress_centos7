@@ -1,0 +1,71 @@
+---
+# NOTE:  This module (mod_php7) is only active if prefork (vs worker or event) mpm model is configured
+# See /etc/httpd/conf.modules.d/10-php.conf for details
+- name: Enable mod_php7
+  apache2_module:
+    state: present
+    name: php7.0
+    force: True
+  notify: restart httpd
+
+# mod_fcgid seems to be loaded when mpm event (see below) is active
+
+#######################################################################################################################
+# Only one of 3 below should be "Enable" and other two should be "Disable" so that only one mpm model is active
+#######################################################################################################################
+
+- name: Disable mpm prefork
+  lineinfile:
+    dest: /etc/httpd/conf.modules.d/00-mpm.conf
+    regexp: '^LoadModule mpm_prefork_module modules/mod_mpm_prefork.so'
+    line: '#LoadModule mpm_prefork_module modules/mod_mpm_prefork.so'
+    backrefs: yes
+  notify: restart httpd
+
+- name: Disable mpm worker
+  lineinfile:
+    dest: /etc/httpd/conf.modules.d/00-mpm.conf
+    regexp: '^LoadModule mpm_worker_module modules/mod_mpm_worker.so'
+    line: '#LoadModule mpm_worker_module modules/mod_mpm_worker.so'
+    backrefs: yes
+  notify: restart httpd
+
+- name: Ensable mpm event
+  lineinfile:
+    dest: /etc/httpd/conf.modules.d/00-mpm.conf
+    regexp: '^#LoadModule mpm_event_module modules/mod_mpm_event.so'
+    line: 'LoadModule mpm_event_module modules/mod_mpm_event.so'
+    backrefs: yes
+  notify: restart httpd
+
+#######################################################################################################################
+
+- name: Check whether php-fpm config already in php.conf
+  command: grep proxy\:fcgi /etc/httpd/conf.d/php.conf
+  check_mode: no
+  ignore_errors: True
+  changed_when: False
+  register: check_for_block
+
+- name: Add block to do FCGI proxy on port 9282 (randomly-picked)
+  blockinfile:
+    dest: /etc/httpd/conf.d/php.conf
+    content: "<FilesMatch \\.php$>\n
+#   SetHandler application/x-httpd-php\n
+    SetHandler \"proxy:fcgi://127.0.0.1:9000\"\n</FilesMatch>"
+  when: check_for_block.rc != 0
+  notify: restart httpd
+
+#- name: Open firewall for port 9183 (FCGI) but only from localhost (127.0.0.1)
+#  firewalld:
+#    rich_rule: 'rule family="ipv4" source address="127.0.0.1/32" port protocol="tcp" port="9183" accept'
+#    permanent: true
+#    state: enabled
+#  notify: restart firewalld
+
+#- name: Change listen port in php-fpm.conf (default 9000)
+#  lineinfile:
+#    dest: /etc/php-fpm.d/www.conf
+#    regexp: '^listen ='
+#    line: 'listen = 127.0.0.1:9183'
+#  notify: restart php-fpm

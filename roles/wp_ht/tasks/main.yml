@@ -1,0 +1,52 @@
+---
+- name: Redo setup without doing 'become' to pick up SSH connection details
+  setup:
+  become: no
+
+- name: Stash away 'my_local_ip' from facts
+  set_fact:
+    my_local_ip: "{{ ansible_env['SSH_CLIENT'].split()[0] }}"
+
+- name: Get my public IP address
+  local_action: command curl http://ipecho.net/plain
+  register: my_public_ip
+  become: no
+  changed_when: False
+
+- name: Check whether <Files wp-login.php... block exists in .htaccess
+  command: grep \<Files\ wp-login\.php /var/www/html/.htaccess
+  check_mode: no
+  ignore_errors: True
+  changed_when: False
+  register: check_for_block
+
+- name: Make sure <Files wp-login.php... block exists in .htaccess
+  blockinfile:
+    dest: /var/www/html/.htaccess
+    content: "<Files wp-login.php>\n
+\tOrder deny,allow\n
+\t# These IP addresses can log into admin interface (see whatsmyip.com)\n
+\tDeny from all\n</Files>"
+  when: check_for_block.rc != 0
+
+- name: Add matchable comment line on wp-login block
+  replace:
+    dest: /var/www/html/.htaccess
+    regexp: '(<Files wp-login.php>[^O]*Order deny,allow)(\n\s+# These.*$)?'
+    replace: '<Files wp-login.php>\n\tOrder deny,allow\n\t# These IP addresses can log into admin interface (see whatsmyip.com)'
+
+- name: Use matchable comment marker line inserted above to trigger insertion of allowed address
+  lineinfile:
+    dest: /var/www/html/.htaccess
+    insertafter: '# These IP addresses can log into admin interface'
+    regexp: '^\s*Allow from {{ my_public_ip.stdout }}'
+    line: "\tAllow from {{ my_public_ip.stdout }} # Andy Fraley home"
+    state: present
+
+- name: Use matchable comment marker line inserted above to trigger insertion of allowed address
+  lineinfile:
+    dest: /var/www/html/.htaccess
+    insertafter: '# These IP addresses can log into admin interface'
+    regexp: '^\s*Allow from {{ my_local_ip }}'
+    line: "\tAllow from {{ my_local_ip }} # Andy Fraley local machine"
+    state: present

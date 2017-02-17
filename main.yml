@@ -17,9 +17,11 @@
     ansible_port: "{{ linux.ssh_port }}"
   become: yes
   roles:
+    #- base
     #- ntp
     #- php7_0
     #- httpd
     #- mysql5_7
     #- wordpress
-    - wp_ht
+    #- activate_prefork
+    - activate_event

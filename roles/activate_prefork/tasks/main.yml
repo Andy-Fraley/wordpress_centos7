@@ -1,42 +1,9 @@
 ---
-- name: Install Apache web server (httpd)
-  yum: name={{ item }} state=present
-  with_items:
-  - httpd
-  - httpd-devel
-  - mod_ssl
-  - openssh
-  - mod_fcgid
-  - fcgi
-  - php-fpm
-  notify:
-  - restart httpd
-
-- name: Enable mod-rewrite
-  apache2_module:
-    state: present
-    name: rewrite
-  notify: restart httpd
-
 - name: Enable mod_php7
   apache2_module:
     state: present
     name: php7.0
   notify: restart httpd
-
-- name: open firewall for http
-  firewalld:
-    service: http
-    permanent: true
-    state: enabled
-  notify: restart firewalld
-
-- name: open firewall for https
-  firewalld:
-    service: https
-    permanent: true
-    state: enabled
-  notify: restart firewalld
 
 - name: Enable mpm prefork
   lineinfile:

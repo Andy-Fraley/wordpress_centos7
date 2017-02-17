@@ -1,0 +1,24 @@
+---
+- name: Change owner/group of Wordpress files
+  file:
+    path: "{{ wordpress.root_directory }}/"
+    state: directory
+    recurse: yes
+    owner: "{{ linux.deploy_user }}"
+    group: apache
+
+- name: Ensure all Wordpress directories are 0755
+  command: find {{ wordpress.root_directory }} -type d -exec chmod -c 0755 {} \;
+  register: chmod_result
+  changed_when: "chmod_result.stdout != \"\""
+
+- name: Ensure all Wordpress files are 0644
+  command: find {{ wordpress.root_directory }} -type f -exec chmod -c 0644 {} \;
+  register: chmod_result
+  changed_when: "chmod_result.stdout != \"\""
+
+- name: Special permissions for wp-config.php
+  file:
+    path: "{{ wordpress.root_directory }}/wp-config.php"
+    state: file
+    mode: 0660

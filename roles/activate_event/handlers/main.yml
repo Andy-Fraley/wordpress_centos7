@@ -1,0 +1,9 @@
+---
+- name: restart httpd
+  service: name=httpd state=restarted enabled=yes
+
+- name: restart firewalld
+  service: name=firewalld state=restarted enabled=yes
+
+- name: restart php-fpm
+  service: name=php-fpm state=restarted enabled=yes

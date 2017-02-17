@@ -40,30 +40,6 @@
       src: wp-config.php.j2
       dest: /var/www/html/wp-config.php
 
-  - name: Change owner/group of Wordpress files
-    file:
-      path: "{{ wordpress.root_directory }}/"
-      state: directory
-      recurse: yes
-      owner: "{{ linux.deploy_user }}"
-      group: apache
-
-  - name: Ensure all Wordpress directories are 0755
-    command: find {{ wordpress.root_directory }} -type d -exec chmod -c 0755 {} \;
-    register: chmod_result
-    changed_when: "chmod_result.stdout != \"\""
-
-  - name: Ensure all Wordpress files are 0644
-    command: find {{ wordpress.root_directory }} -type f -exec chmod -c 0644 {} \;
-    register: chmod_result
-    changed_when: "chmod_result.stdout != \"\""
-
-  - name: Special permissions for wp-config.php
-    file:
-      path: "{{ wordpress.root_directory }}/wp-config.php"
-      state: file
-      mode: 0660
-
   - name: Drop wordpress database
     mysql_db:
       name: "{{ db.wp_name }}"
@@ -117,13 +93,148 @@
     notify:
     - restart httpd
 
-  - name: Add current machine to wp-admin access
-    linetofile:
-      path: /var/www/html/.htaccess
-      insertafter: 'Files.*wp-admin.php[^O]*Order deny,allow'
-      line: '1.2.3.4 # Andy Fraley home'
-
   when:
     not wordpress_file.stat.exists
 
 ### END BLOCK #########################################################################################################
+
+#######################################################################################################################
+# Make sure Wordpress file ownsership and permissions are correct
+#######################################################################################################################
+
+- name: Change owner/group of Wordpress files
+  file:
+    path: "{{ wordpress.root_directory }}/"
+    state: directory
+    recurse: yes
+    owner: "{{ linux.deploy_user }}"
+    group: apache
+
+- name: Ensure directories are 755 (except ~/wp-content/uploads and ~/wp-content/wflogs directories)
+  shell: find {{ wordpress.root_directory }} -type d ! -regex ".*\/wp\-content\/uploads.*" ! -regex ".*/wp-content\/wflogs.*" -print0 | xargs -0 chmod -c 0755
+  register: chmod_result
+  changed_when: "chmod_result.stdout != \"\""
+
+- name: Ensure ~/wp-content/uploads and ~/wp-content/wflogs directories are 775
+  shell: find {{ wordpress.root_directory }} -type d -regex ".*\/wp\-content\/uploads.*\|.*/wp-content\/wflogs.*" -print0 | xargs -0 chmod -c 0775
+  register: chmod_result
+  changed_when: "chmod_result.stdout != \"\""
+
+- name: Ensure files are 644 (except under ~/wp-content/uploads and ~/wp-content/wflogs directories, and wp-config.php)
+  shell: find {{ wordpress.root_directory }} -type f ! -regex ".*\/wp\-content\/uploads.*" ! -regex ".*/wp\-content\/wflogs.*" ! -regex ".*wp\-config\.php.*" -print0 | xargs -0 chmod -c 0644
+  register: chmod_result
+  changed_when: "chmod_result.stdout != \"\""
+
+- name: Ensure ~/wp-content/uploads and ~/wp-content/wflogs files are 664
+  shell: find {{ wordpress.root_directory }} -type f -regex ".*\/wp\-content\/uploads.*\|.*/wp\-content\/wflogs.*" -print0 | xargs -0 chmod -c 0664
+  register: chmod_result
+  changed_when: "chmod_result.stdout != \"\""
+
+- name: Special permissions (440) for wp-config.php
+  file:
+    path: "{{ wordpress.root_directory }}/wp-config.php"
+    state: file
+    mode: 0440
+
+- name: Stop
+  fail:
+    msg: 'Stop'
+  when: True
+
+- name: Ensure all Wordpress files are 0644
+  command: find {{ wordpress.root_directory }} -type f | grep -v '/wp-content/\|wp-config.php' | -exec chmod -c 0644 {} \;
+  register: chmod_result
+  changed_when: "chmod_result.stdout != \"\""
+
+- name: Special permissions (775) for wp-content/uploads directory
+  command: find {{ wordpress.root_directory }}/wp-content/uploads -type d -exec chmod -c 0775 {} \;
+  register: chmod_result
+  changed_when: "chmod_result.stdout != \"\""
+
+- name: Special permissions (664) for wp-content/uploads files
+  command: find {{ wordpress.root_directory }}/wp-content/uploads -type f -exec chmod -c 0664 {} \;
+  register: chmod_result
+  changed_when: "chmod_result.stdout != \"\""
+
+- name: Special permissions (775) for wp-content/wflogs directory
+  command: find {{ wordpress.root_directory }}/wp-content/wflogs -type d -exec chmod -c 0775 {} \;
+  register: chmod_result
+  changed_when: "chmod_result.stdout != \"\""
+
+- name: Special permissions (664) for wp-content/wflogs directory
+  command: find {{ wordpress.root_directory }}/wp-content/wflogs -type f -exec chmod -c 0664 {} \;
+  register: chmod_result
+  changed_when: "chmod_result.stdout != \"\""
+
+#######################################################################################################################
+# Insert whitelist IPs to allow installation client to access wp-login.php (Wordpress console)
+#######################################################################################################################
+
+- name: Redo setup without doing 'become' to pick up SSH connection details
+  setup:
+  become: no
+
+- name: Stash away 'my_local_ip' from facts
+  set_fact:
+    my_local_ip: "{{ ansible_env['SSH_CLIENT'].split()[0] }}"
+
+- name: Get my public IP address
+  local_action: command curl http://ipecho.net/plain
+  register: my_public_ip
+  become: no
+  changed_when: False
+
+- name: Check whether <Files wp-login.php... block exists in .htaccess
+  command: grep \<Files\ wp-login\.php /var/www/html/.htaccess
+  check_mode: no
+  ignore_errors: True
+  changed_when: False
+  register: check_for_block
+
+- name: Make sure <Files wp-login.php... block exists in .htaccess
+  blockinfile:
+    dest: /var/www/html/.htaccess
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - Whitelist IPs for wp-login.php access"
+    content: "<Files wp-login.php>\n
+\tOrder deny,allow\n
+\t# These IP addresses can log into admin interface (see whatsmyip.com)\n
+\tDeny from all\n</Files>"
+  when: check_for_block.rc != 0
+
+- name: Add matchable comment line on wp-login block
+  replace:
+    dest: /var/www/html/.htaccess
+    regexp: '(<Files wp-login.php>[^O]*Order deny,allow)(\n\s+# These.*$)?'
+    replace: '<Files wp-login.php>\n\tOrder deny,allow\n\t# These IP addresses can log into admin interface (see whatsmyip.com)'
+
+- name: Use matchable comment marker line inserted above to trigger insertion of allowed address
+  lineinfile:
+    dest: /var/www/html/.htaccess
+    insertafter: '# These IP addresses can log into admin interface'
+    regexp: '^\s*Allow from {{ my_public_ip.stdout }}'
+    line: "\tAllow from {{ my_public_ip.stdout }} # Andy Fraley home"
+    state: present
+
+- name: Use matchable comment marker line inserted above to trigger insertion of allowed address
+  lineinfile:
+    dest: /var/www/html/.htaccess
+    insertafter: '# These IP addresses can log into admin interface'
+    regexp: '^\s*Allow from {{ my_local_ip }}'
+    line: "\tAllow from {{ my_local_ip }} # Andy Fraley local machine"
+    state: present
+
+- name: Check whether <Files wp-config.php... block exists in .htaccess
+  command: grep \<Files\ wp-config\.php /var/www/html/.htaccess
+  check_mode: no
+  ignore_errors: True
+  changed_when: False
+  register: check_for_block
+
+- name: Insert block into .htaccess to prevent direct access to wp-config.php file
+  blockinfile:
+    dest: /var/www/html/.htaccess
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - Block access to wp-config.php file"
+    content: "<Files wp-config.php>\n
+\tOrder allow,deny\n
+\tDeny from all\n</Files>"
+  when: check_for_block.rc != 0
