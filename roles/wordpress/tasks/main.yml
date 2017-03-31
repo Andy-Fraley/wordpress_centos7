@@ -1,7 +1,7 @@
 ---
 - name: Check if WordPress already installed
   stat:
-    path: /var/www/html/wp-blog-header.php
+    path: "{{ wordpress.root_directory }}/wp-blog-header.php"
   register: wordpress_file
 
 # The WordPress configuration tasks in the block below will only execute if WordPress was downloaded above
@@ -10,35 +10,35 @@
 
 - block:
 
-  - name: Ensure /var/www/html directory is empty
-    shell: rm -rf /var/www/html/*
+  - name: Clean out {{ wordpress.root_directory }} directory
+    shell: "rm -rf {{ wordpress.root_directory }}/*"
 
   - name: Download and expand WordPress
     unarchive:
       src: https://wordpress.org/latest.tar.gz
-      dest: /var/www/html
+      dest: "{{ wordpress.root_directory }}"
       remote_src: True
 
-  - name: Move WordPress files up a level so they're directly under /var/www/html/
-    shell: "mv wordpress/* ."
+  - name: Move WordPress files up a level so they're directly under {{ wordpress.root_directory }}/
+    shell: "mv {{ wordpress.root_directory }}/wordpress/* {{ wordpress.root_directory }}/"
     args:
-      chdir: /var/www/html/
-      removes: /var/www/html/wordpress/index.php
-      creates: /var/www/html/index.php
+      removes: "{{ wordpress.root_directory }}/wordpress/index.php"
+      creates: "{{ wordpress.root_directory }}/index.php"
 
-  - name: Remove empty /var/www/html/wordpress directory...artifact from WordPress download and unzip
+  - name: Remove empty {{ wordpress.root_directory }}/wordpress directory...artifact from WordPress download and unzip
     file:
-      path: /var/www/html/wordpress
+      path: "{{ wordpress.root_directory }}/wordpress"
       state: absent
 
   - name: Fetch random salts for WordPress config
     local_action: command curl https://api.wordpress.org/secret-key/1.1/salt/
     register: wp_salt
+    become: no
 
   - name: Update WordPress config file from template
     template:
       src: wp-config.php.j2
-      dest: /var/www/html/wp-config.php
+      dest: "{{ wordpress.root_directory }}/wp-config.php"
 
   - name: Drop wordpress database
     mysql_db:
@@ -99,72 +99,35 @@
 ### END BLOCK #########################################################################################################
 
 #######################################################################################################################
-# Make sure Wordpress file ownsership and permissions are correct
+# Make sure Wordpress file ownership and permissions are correct
 #######################################################################################################################
 
-- name: Change owner/group of Wordpress files
+- name: Ensure proper owner/group on Wordpress files
   file:
     path: "{{ wordpress.root_directory }}/"
     state: directory
     recurse: yes
-    owner: "{{ linux.deploy_user }}"
-    group: apache
+    owner: "{{ webserver.user }}"
+    group: "{{ webserver.group }}"
 
-- name: Ensure directories are 755 (except ~/wp-content/uploads and ~/wp-content/wflogs directories)
-  shell: find {{ wordpress.root_directory }} -type d ! -regex ".*\/wp\-content\/uploads.*" ! -regex ".*/wp-content\/wflogs.*" -print0 | xargs -0 chmod -c 0755
+- name: Ensure Wordpress directories are 755
+  shell: "find {{ wordpress.root_directory }} -type d -print0 | xargs -0 chmod -c 0755"
   register: chmod_result
   changed_when: "chmod_result.stdout != \"\""
 
-- name: Ensure ~/wp-content/uploads and ~/wp-content/wflogs directories are 775
-  shell: find {{ wordpress.root_directory }} -type d -regex ".*\/wp\-content\/uploads.*\|.*/wp-content\/wflogs.*" -print0 | xargs -0 chmod -c 0775
+- name: Ensure Wordpress files are 644 (except those under ~/wp-content/wflogs which are managed by WordFence)
+  shell: find "{{ wordpress.root_directory }}" -type f ! -regex ".*/wp\-content\/wflogs.*" -print0 | xargs -0 chmod -c 0644
   register: chmod_result
   changed_when: "chmod_result.stdout != \"\""
 
-- name: Ensure files are 644 (except under ~/wp-content/uploads and ~/wp-content/wflogs directories, and wp-config.php)
-  shell: find {{ wordpress.root_directory }} -type f ! -regex ".*\/wp\-content\/uploads.*" ! -regex ".*/wp\-content\/wflogs.*" ! -regex ".*wp\-config\.php.*" -print0 | xargs -0 chmod -c 0644
-  register: chmod_result
-  changed_when: "chmod_result.stdout != \"\""
-
-- name: Ensure ~/wp-content/uploads and ~/wp-content/wflogs files are 664
-  shell: find {{ wordpress.root_directory }} -type f -regex ".*\/wp\-content\/uploads.*\|.*/wp\-content\/wflogs.*" -print0 | xargs -0 chmod -c 0664
-  register: chmod_result
-  changed_when: "chmod_result.stdout != \"\""
-
-- name: Special permissions (440) for wp-config.php
-  file:
-    path: "{{ wordpress.root_directory }}/wp-config.php"
-    state: file
-    mode: 0440
-
-- name: Stop
-  fail:
-    msg: 'Stop'
-  when: True
-
-- name: Ensure all Wordpress files are 0644
-  command: find {{ wordpress.root_directory }} -type f | grep -v '/wp-content/\|wp-config.php' | -exec chmod -c 0644 {} \;
-  register: chmod_result
-  changed_when: "chmod_result.stdout != \"\""
-
-- name: Special permissions (775) for wp-content/uploads directory
-  command: find {{ wordpress.root_directory }}/wp-content/uploads -type d -exec chmod -c 0775 {} \;
-  register: chmod_result
-  changed_when: "chmod_result.stdout != \"\""
-
-- name: Special permissions (664) for wp-content/uploads files
-  command: find {{ wordpress.root_directory }}/wp-content/uploads -type f -exec chmod -c 0664 {} \;
-  register: chmod_result
-  changed_when: "chmod_result.stdout != \"\""
-
-- name: Special permissions (775) for wp-content/wflogs directory
-  command: find {{ wordpress.root_directory }}/wp-content/wflogs -type d -exec chmod -c 0775 {} \;
-  register: chmod_result
-  changed_when: "chmod_result.stdout != \"\""
-
-- name: Special permissions (664) for wp-content/wflogs directory
-  command: find {{ wordpress.root_directory }}/wp-content/wflogs -type f -exec chmod -c 0664 {} \;
-  register: chmod_result
-  changed_when: "chmod_result.stdout != \"\""
+- name: Make files SELinux-writeable by webserver so WordFence and WordPress and W3 Total Cache can access them
+  include_role:
+    name: wordpress/roles/make_web_writeable
+  with_items:
+    - "{{ wordpress.root_directory }}/.htaccess"
+    - "{{ wordpress.root_directory }}/wordfence-waf.php"
+  loop_control:
+    loop_var: fullpath_filename
 
 #######################################################################################################################
 # Insert whitelist IPs to allow installation client to access wp-login.php (Wordpress console)
@@ -185,7 +148,7 @@
   changed_when: False
 
 - name: Check whether <Files wp-login.php... block exists in .htaccess
-  command: grep \<Files\ wp-login\.php /var/www/html/.htaccess
+  command: grep \<Files\ wp-login\.php "{{ wordpress.root_directory }}"/.htaccess
   check_mode: no
   ignore_errors: True
   changed_when: False
@@ -193,7 +156,7 @@
 
 - name: Make sure <Files wp-login.php... block exists in .htaccess
   blockinfile:
-    dest: /var/www/html/.htaccess
+    dest: "{{ wordpress.root_directory }}/.htaccess"
     marker: "# {mark} ANSIBLE MANAGED BLOCK - Whitelist IPs for wp-login.php access"
     content: "<Files wp-login.php>\n
 \tOrder deny,allow\n
@@ -203,13 +166,13 @@
 
 - name: Add matchable comment line on wp-login block
   replace:
-    dest: /var/www/html/.htaccess
+    dest: "{{ wordpress.root_directory }}/.htaccess"
     regexp: '(<Files wp-login.php>[^O]*Order deny,allow)(\n\s+# These.*$)?'
     replace: '<Files wp-login.php>\n\tOrder deny,allow\n\t# These IP addresses can log into admin interface (see whatsmyip.com)'
 
 - name: Use matchable comment marker line inserted above to trigger insertion of allowed address
   lineinfile:
-    dest: /var/www/html/.htaccess
+    dest: "{{ wordpress.root_directory }}/.htaccess"
     insertafter: '# These IP addresses can log into admin interface'
     regexp: '^\s*Allow from {{ my_public_ip.stdout }}'
     line: "\tAllow from {{ my_public_ip.stdout }} # Andy Fraley home"
@@ -217,14 +180,14 @@
 
 - name: Use matchable comment marker line inserted above to trigger insertion of allowed address
   lineinfile:
-    dest: /var/www/html/.htaccess
+    dest: "{{ wordpress.root_directory }}/.htaccess"
     insertafter: '# These IP addresses can log into admin interface'
     regexp: '^\s*Allow from {{ my_local_ip }}'
     line: "\tAllow from {{ my_local_ip }} # Andy Fraley local machine"
     state: present
 
 - name: Check whether <Files wp-config.php... block exists in .htaccess
-  command: grep \<Files\ wp-config\.php /var/www/html/.htaccess
+  command: grep \<Files\ wp-config\.php "{{ wordpress.root_directory }}"/.htaccess
   check_mode: no
   ignore_errors: True
   changed_when: False
@@ -232,9 +195,68 @@
 
 - name: Insert block into .htaccess to prevent direct access to wp-config.php file
   blockinfile:
-    dest: /var/www/html/.htaccess
+    dest: "{{ wordpress.root_directory }}/.htaccess"
     marker: "# {mark} ANSIBLE MANAGED BLOCK - Block access to wp-config.php file"
     content: "<Files wp-config.php>\n
 \tOrder allow,deny\n
 \tDeny from all\n</Files>"
+  when: check_for_block.rc != 0
+
+- name: Check whether "include only" block exists in .htaccess
+  command: grep RewriteRule\ \^wp\-includes "{{ wordpress.root_directory }}"/.htaccess
+  check_mode: no
+  ignore_errors: True
+  changed_when: False
+  register: check_for_block
+
+- name: Insert block into .htaccess to prevent end user from executing any include file directly
+  blockinfile:
+    dest: "{{ wordpress.root_directory }}/.htaccess"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - Block the include-only files"
+    content: "<IfModule mod_rewrite.c>\n
+RewriteEngine On\n
+RewriteBase /\n
+RewriteRule ^wp-admin/includes/ - [F,L]\n
+RewriteRule !^wp-includes/ - [S=3]\n
+RewriteRule ^wp-includes/[^/]+\\.php$ - [F,L]\n
+RewriteRule ^wp-includes/js/tinymce/langs/.+\\.php - [F,L]\n
+RewriteRule ^wp-includes/theme-compat/ - [F,L]\n</IfModule>"
+  when: check_for_block.rc != 0
+
+- name: Ensure ~/wp-content/uploads directory exists
+  file:
+    path: "{{ wordpress.root_directory }}/wp-content/uploads"
+    state: directory
+    owner: "{{ webserver.user }}"
+    group: "{{ webserver.group }}"
+    mode: 0755
+
+- name: Does .htaccess exist in ~/wp-content/uploads directory?
+  stat:
+    path: "{{ wordpress.root_directory }}/wp-content/uploads/.htaccess"
+  register: upload_htaccess
+
+- name: Create ~/wp-content/upload/.htaccess if it doesn't exist
+  file:
+    path: "{{ wordpress.root_directory }}/wp-content/uploads/.htaccess"
+    state: touch
+    owner: "{{ webserver.user }}"
+    group: "{{ webserver.group }}"
+    mode: 0644
+  when: not upload_htaccess.stat.exists is defined or not upload_htaccess.stat.exists
+
+- name: Check whether uploads directory is in place in uploads/.htaccess file
+  command: grep \<Files\ \*\.php\> "{{ wordpress.root_directory }}"/wp-content/uploads/.htaccess
+  check_mode: no
+  ignore_errors: True
+  changed_when: False
+  register: check_for_block
+
+- name: Insert block into ~wp-content/uploads/.htaccess to prevent end user from executing any PHP file in uploads
+  blockinfile:
+    dest: "{{ wordpress.root_directory }}/wp-content/uploads/.htaccess"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - Prevent PHP access in ~/wp-content/uploads"
+    content: "# Kill PHP Execution\n
+<Files *.php>\n
+Deny from all\n</Files>"
   when: check_for_block.rc != 0

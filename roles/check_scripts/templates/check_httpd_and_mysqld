@@ -1,0 +1,9 @@
+#!/bin/bash
+if [[ ! "$(/bin/systemctl status httpd)" =~ "active (running)" ]] || [[ ! "$(/bin/systemctl status mysqld)" =~ "active (running)" ]]
+then
+    echo '*--' >>/var/log/restart.log
+    /bin/date --iso-8601='seconds' --utc >>/var/log/restart.log
+    /bin/systemctl status httpd >>/var/log/restart.log
+    /bin/systemctl status httpd >>/var/log/restart.log
+    source /root/bin/restart_httpd_and_mysqld
+fi

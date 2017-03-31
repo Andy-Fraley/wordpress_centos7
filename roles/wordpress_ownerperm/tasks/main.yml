@@ -1,24 +1,30 @@
----
-- name: Change owner/group of Wordpress files
+#######################################################################################################################
+# Make sure Wordpress file ownership and permissions are correct
+#######################################################################################################################
+
+- name: Ensure proper owner/group on Wordpress files
   file:
     path: "{{ wordpress.root_directory }}/"
     state: directory
     recurse: yes
-    owner: "{{ linux.deploy_user }}"
-    group: apache
+    owner: "{{ webserver.user }}"
+    group: "{{ webserver.group }}"
 
-- name: Ensure all Wordpress directories are 0755
-  command: find {{ wordpress.root_directory }} -type d -exec chmod -c 0755 {} \;
+- name: Ensure Wordpress directories are 755
+  shell: "find {{ wordpress.root_directory }} -type d -print0 | xargs -0 chmod -c 0755"
   register: chmod_result
   changed_when: "chmod_result.stdout != \"\""
 
-- name: Ensure all Wordpress files are 0644
-  command: find {{ wordpress.root_directory }} -type f -exec chmod -c 0644 {} \;
+- name: Ensure Wordpress files are 644 (except those under ~/wp-content/wflogs which are managed by WordFence)
+  shell: find "{{ wordpress.root_directory }}" -type f ! -regex ".*/wp\-content\/wflogs.*" -print0 | xargs -0 chmod -c 0644
   register: chmod_result
   changed_when: "chmod_result.stdout != \"\""
 
-- name: Special permissions for wp-config.php
-  file:
-    path: "{{ wordpress.root_directory }}/wp-config.php"
-    state: file
-    mode: 0660
+- name: Make files SELinux-writeable by webserver so WordFence and WordPress and W3 Total Cache can access them
+  include_role:
+    name: wordpress/roles/make_web_writeable
+  with_items:
+    - "{{ wordpress.root_directory }}/.htaccess"
+    - "{{ wordpress.root_directory }}/wordfence-waf.php"
+  loop_control:
+    loop_var: fullpath_filename

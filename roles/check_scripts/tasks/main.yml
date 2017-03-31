@@ -1,0 +1,59 @@
+---
+- name: Ensure /root/bin present
+  file:
+    path: /root/bin
+    state: directory
+    mode: 0755
+    owner: root
+    group: root
+
+- name: Copy 'check' script
+  template:
+    src: check_httpd_and_mysqld
+    dest: /root/bin
+    owner: root
+    group: root
+    mode: 755
+
+- name: Copy 'restart' script
+  template:
+    src: restart_httpd_and_mysqld
+    dest: /root/bin
+    owner: root
+    group: root
+    mode: 755
+
+- name: Copy 'track memory' script
+  template:
+    src: track_free_memory
+    dest: /root/bin
+    owner: root
+    group: root
+    mode: 755
+
+- name: Copy check_script logrotate config file
+  template:
+    src: check_scripts
+    dest: /etc/logrotate.d
+    owner: root
+    group: root
+    mode: 644
+
+- name: "Cron 'check' script"
+  cron:
+    name: Check if httpd and mysqld are running
+    minute: "*/5"
+    job: "/root/bin/check_httpd_and_mysqld > /dev/null 2>&1"
+
+- name: "Cron 'track free' script"
+  cron:
+    name: Track free memory
+    minute: "*/5"
+    job: "/root/bin/track_free_memory > /dev/null 2>&1"
+
+- name: "Cron 'restart' script"
+  cron:
+    name: Restart httpd and mysqld (reclaim memory)
+    hour: "5"
+    minute: "1"
+    job: "/root/bin/track_free_memory > /dev/null 2>&1"

@@ -17,3 +17,7 @@ db:
 
 wordpress:
   root_directory: "{{ vault_wordpress.root_directory }}"
+
+webserver:
+  user: "{{ vault_webserver.user }}"
+  group: "{{ vault_webserver.group }}"

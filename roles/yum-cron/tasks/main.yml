@@ -1,0 +1,20 @@
+---
+- name: Install yum-cron
+  yum: name={{ item }} state=present
+  with_items:
+  - yum-cron
+  notify:
+  - restart yum-cron
+
+- name: Auto-apply updates
+  lineinfile:
+    dest: '/etc/yum/yum-cron.conf'
+    regexp: '^apply_updates ='
+    line: "apply_updates = yes"
+    state: present
+
+- name: Ensure yum-cron is running now and at reboot
+  service:
+    name: yum-cron
+    state: started
+    enabled: yes

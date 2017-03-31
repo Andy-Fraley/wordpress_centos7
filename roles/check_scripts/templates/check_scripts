@@ -1,0 +1,6 @@
+/var/log/memory.log /var/log/restart.log {
+    rotate 4
+    size 100k
+    missingok
+    notifempty
+}

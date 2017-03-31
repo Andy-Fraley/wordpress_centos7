@@ -1,0 +1,16 @@
+#!/bin/bash
+echo '---' >>/var/log/restart.log
+/bin/date --iso-8601='seconds' --utc >>/var/log/restart.log
+echo 'Stopping httpd' >>/var/log/restart.log
+/bin/systemctl stop httpd
+echo 'Stopping mysqld' >>/var/log/restart.log
+/bin/systemctl stop mysqld
+echo '(Just in case) Killing all httpd processes' >>/var/log/restart.log
+/bin/killall httpd
+echo '(Just in case) Killing all mysqld processes' >>/var/log/restart.log
+/bin/killall mysqld
+echo 'Starting mysqld' >>/var/log/restart.log
+/bin/systemctl start mysqld
+echo 'Starting httpd' >>/var/log/restart.log
+/bin/systemctl start httpd
+echo 'Done with restart!' >>/var/log/restart.log
