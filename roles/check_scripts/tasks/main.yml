@@ -31,6 +31,30 @@
     group: root
     mode: 755
 
+- name: Copy 'secure wordpress' script
+  template:
+    src: secure_wp.j2
+    dest: /root/bin/secure_wp
+    owner: root
+    group: root
+    mode: 755
+
+- name: Copy 'upgrade wordpress' script
+  template:
+    src: upgrade_wp.j2
+    dest: /root/bin/upgrade_wp
+    owner: root
+    group: root
+    mode: 755
+
+- name: Copy 'update plugins' script
+  template:
+    src: update_plugins.j2
+    dest: /root/bin/update_plugins
+    owner: root
+    group: root
+    mode: 755
+
 - name: Copy check_script logrotate config file
   template:
     src: check_scripts
@@ -44,12 +68,16 @@
     name: Check if httpd and mysqld are running
     minute: "*/5"
     job: "/root/bin/check_httpd_and_mysqld > /dev/null 2>&1"
+  notify:
+  - restart crond
 
 - name: "Cron 'track free' script"
   cron:
     name: Track free memory
     minute: "*/5"
     job: "/root/bin/track_free_memory > /dev/null 2>&1"
+  notify:
+  - restart crond
 
 - name: "Cron 'restart' script"
   cron:
@@ -57,3 +85,23 @@
     hour: "5"
     minute: "1"
     job: "/root/bin/track_free_memory > /dev/null 2>&1"
+  notify:
+  - restart crond
+
+- name: "Cron WordPress core upgrade"
+  cron:
+    name: Upgrade WordPress core if update is available
+    hour: "6"
+    minute: "1"
+    job: "/root/bin/upgrade_wp >/dev/null 2>&1"
+  notify:
+  - restart crond
+
+- name: "Cron WordPress plugins upgrade"
+  cron:
+    name: Upgrade WordPress plugins if updates are available for any
+    hour: "6"
+    minute: "31"
+    job: "/root/bin/update_plugins >/dev/null 2>&1"
+  notify:
+  - restart crond
