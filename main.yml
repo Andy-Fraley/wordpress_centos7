@@ -5,7 +5,7 @@
 #    ansible_user: "{{ linux.root_user }}"
 #    ansible_ssh_pass: "{{ linux.root_password }}"
 #  roles:
-#    - base
+#    - base  # Configure base CentOS 7 with deploy user, set up firewall, run non-std SSH port
 #  gather_facts: False
 
 - name: Install all other roles as 'deploy'
@@ -17,14 +17,13 @@
     ansible_port: "{{ linux.ssh_port }}"
   become: yes
   roles:
-    #- base  # Configure base CentOS 7 with deploy user, set up firewall, run non-std SSH port
-    #- yum-cron  # Keep the system up-to-date
     #- emacs  # Gotta have my favorite editor on the system
     #- ntp  # Keep clock in sync
+    #- yum-cron  # Keep the system up-to-date
     #- php7_0  # P in lamP
     #- httpd  # A in lAmp
     #- mysql5_7  # M in laMp
-    #- check_scripts  # To check on httpd, mysqld, and track memory usage
+    - check_scripts  # To check on httpd, mysqld, and track memory usage
     #- activate_prefork  # To use standard MPM prefork mode with mod_php on Apache (the LAMP default)
     #- activate_event  # Optimized for serving files...needs FCGI and php-fpm
     #- wordpress  # Install WordPress and its CLI

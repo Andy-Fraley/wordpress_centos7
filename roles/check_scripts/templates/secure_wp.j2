@@ -1,0 +1,8 @@
+#!/bin/bash
+
+find {{ wordpress.root_directory }} -type d -print0 | xargs -0 chmod -c 0755
+find {{ wordpress.root_directory }} -type f ! -regex ".*/wp\-content\/wflogs.*" -print0 | xargs -0 chmod -c 0644
+chown apache:apache -R {{ wordpress.root_directory }}
+chcon -R -t httpd_sys_content_t {{ wordpress.root_directory }}
+chcon -R -t httpd_sys_rw_content_t {{ wordpress.root_directory }}/wp-content
+chcon -t httpd_sys_rw_content_t {{ wordpress.root_directory }}/.htaccess {{ wordpress.root_directory }}/wp-config.php {{ wordpress.root_directory }}/wordfence-waf.php

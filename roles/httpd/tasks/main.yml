@@ -1,6 +1,6 @@
 ---
 - name: Install Apache web server (httpd)
-  yum: name={{ item }} state=present
+  yum: name={{ item }} state=latest
   with_items:
   - httpd
   - httpd-devel

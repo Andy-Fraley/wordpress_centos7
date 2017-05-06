@@ -1,6 +1,6 @@
 ---
 - name: Install yum-cron
-  yum: name={{ item }} state=present
+  yum: name={{ item }} state=latest
   with_items:
   - yum-cron
   notify:

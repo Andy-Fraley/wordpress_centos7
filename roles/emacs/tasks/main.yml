@@ -1,6 +1,6 @@
 ---
 - name: Install emacs
-  yum: name={{ item }} state=present
+  yum: name={{ item }} state=latest
   with_items:
   - emacs
 

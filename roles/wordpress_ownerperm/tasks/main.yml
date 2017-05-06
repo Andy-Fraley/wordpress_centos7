@@ -20,6 +20,12 @@
   register: chmod_result
   changed_when: "chmod_result.stdout != \"\""
 
+- name: Special permissions for wp-config.php
+  file:
+    path: "{{ wordpress.root_directory }}/wp-config.php"
+    state: file
+    mode: 0660
+
 - name: Make files SELinux-writeable by webserver so WordFence and WordPress and W3 Total Cache can access them
   include_role:
     name: wordpress/roles/make_web_writeable

@@ -48,10 +48,22 @@
     update_cache: yes
   become: yes
 
-- name: Install policycoreutils-python
-  yum:
-    name: policycoreutils-python
-    state: latest
+- name: Install firewalld policycoreutils-python
+  yum: name={{ item }} state=latest
+  with_items:
+  - firewalld
+  - policycoreutils-python
+  become: yes
+  notify: restart firewalld
+
+- name: Force all notified handlers to run now (potentially starting firewalld), not waiting for normal sync points
+  meta: flush_handlers
+
+- name: Install zip and unzip
+  yum: name={{ item }} state=latest
+  with_items:
+  - zip
+  - unzip
   become: yes
 
 - name: Create 'wheel' group for sudoers on this machine
