@@ -31,14 +31,6 @@
     group: root
     mode: 755
 
-- name: Copy 'secure wordpress' script
-  template:
-    src: secure_wp.j2
-    dest: /root/bin/secure_wp
-    owner: root
-    group: root
-    mode: 755
-
 - name: Copy 'upgrade wordpress' script
   template:
     src: upgrade_wp.j2

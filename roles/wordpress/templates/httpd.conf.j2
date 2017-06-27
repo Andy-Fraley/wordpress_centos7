@@ -354,9 +354,11 @@ EnableSendfile on
 IncludeOptional conf.d/*.conf
 
 ### ADDED LINE BELOW PLACED BY ANSIBLE
-ServerName localhost
+ServerName {{ host_domain }}:80
 
 ### ADDED LINES BELOW PLACED BY ANSIBLE
-<If "%{HTTP_HOST} != '{{ inventory_hostname }}'">
-    Redirect "/" "http://{{ inventory_hostname }}/"
-</If>
+<IfModule mod_rewrite.c>
+RewriteEngine on
+RewriteCond %{HTTP_HOST} !^{{ host_domain }}$ [NC]
+RewriteRule ^(.*)$ {{ host_protocol }}://{{ host_domain }}$1 [R=301,L]
+</IfModule>

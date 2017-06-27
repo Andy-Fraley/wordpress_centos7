@@ -18,19 +18,22 @@
   changed_when: false
   register: temp_password
 
-- name: Create .my.cnf file using temporary password to allow login (to change password)
+- name: Create script to change MySQL root password
   template:
-    src: my.cnf.j2
-    dest: /root/.my.cnf
+    src: change_mysql_root_password.j2
+    dest: /root/change_mysql_root_password
+    owner: root
+    group: root
+    mode: 755
   when: temp_password.stdout != ""
 
-- name: Change root database password from temporary password created during DB install
-  shell: /usr/bin/mysql --connect-expired-password -u root --execute="ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ db.root_password }}';"
+- name: Run script to change MySQL root password
+  command: /root/change_mysql_root_password
   when: temp_password.stdout != ""
 
-- name: Delete temp .my.cnf file
+- name: Delete script to change MySQL root password
   file:
-    path: /root/.my.cnf
+    path: /root/change_mysql_root_password
     state: absent
   when: temp_password.stdout != ""
 

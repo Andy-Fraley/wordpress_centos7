@@ -83,6 +83,14 @@
       group: root
       mode: 0755
 
+  - name: Make sure host_protocol is defined (can be set for host in inventory file)
+    set_fact: host_protocol="http"
+    when: host_protocol is undefined
+
+  - name: Make sure host_domain is defined (can be set for host in inventory file)
+    set_fact: host_domain="{{ inventory_hostname }}"
+    when: host_domain is undefined
+
   - name: Update httpd.conf from template
     template:
       src: httpd.conf.j2

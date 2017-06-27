@@ -20,6 +20,35 @@
   with_items:
   - php70w
   - php70w-cli
-  - php70w-mysql
+  - php70w-mysqlnd  # To run MySQL 5.7 (not 5.6), need "nd" version (native driver)
   - php70w-fpm
+  - php70w-xml  # Needed by backwpup
+  notify: restart php-fpm
+
+- name: Increase max file upload size
+  lineinfile:
+    path: /etc/php.ini
+    regexp: 'upload_max_filesize'
+    line: 'upload_max_filesize = 64M'
+  notify: restart php-fpm
+
+- name: Increase memory limit (to allow for max file upload size)
+  lineinfile:
+    path: /etc/php.ini
+    regexp: 'memory_limit'
+    line: 'memory_limit = 64M'
+  notify: restart php-fpm
+
+- name: Increase max post size (to allow for max file upload size)
+  lineinfile:
+    path: /etc/php.ini
+    regexp: 'post_max_size'
+    line: 'post_max_size = 64M'
+  notify: restart php-fpm
+
+- name: Increase PHP execution time (to allow for max file upload size)
+  lineinfile:
+    path: /etc/php.ini
+    regexp: 'max_execution_time'
+    line: 'max_execution_time = 300'
   notify: restart php-fpm

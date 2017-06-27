@@ -17,7 +17,7 @@
     ansible_port: "{{ linux.ssh_port }}"
     ansible_sudo_pass: "{{ linux.deploy_password }}"
     ansible_ssh_pass: "{{ linux.deploy_password }}"
-  when: non_standard_ssh is defined and non_standard_ssh.state == "started"
+  when: non_standard_ssh is defined and 'state' in non_standard_ssh and non_standard_ssh.state == "started"
   no_log: True
 
 - name: Now get facts (since deferred as part of role)
